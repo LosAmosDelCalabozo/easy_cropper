@@ -41,6 +41,7 @@ def load_config():
         'subfolder':     cfg.get('settings', 'subfolder',     fallback=DEFAULT_SUBFOLDER),
         'custom_folder': cfg.get('settings', 'custom_folder', fallback=DEFAULT_CUSTOM_FOLDER),
         'pattern':       cfg.get('settings', 'pattern',       fallback=DEFAULT_PATTERN),
+        'overwrite':     cfg.get('settings', 'overwrite',     fallback='false'),
     }
 
 
@@ -52,6 +53,7 @@ def save_config(data):
         'subfolder':     data.get('subfolder',     DEFAULT_SUBFOLDER),
         'custom_folder': data.get('custom_folder', DEFAULT_CUSTOM_FOLDER),
         'pattern':       data.get('pattern',       DEFAULT_PATTERN),
+        'overwrite':     data.get('overwrite',     'false'),
     }
     with open(CONFIG_PATH, 'w') as f:
         cfg.write(f)
@@ -271,8 +273,9 @@ class ImageCropper:
                            activebackground='#1e1e1e', activeforeground='#00d4ff',
                            font=('Segoe UI', 9))
 
-        tk.Radiobutton(radio_frame, text="Subfolder next to image:", variable=folder_mode,
-                       value='subfolder', **radio_style).grid(row=0, column=0, sticky='w')
+        rb_subfolder = tk.Radiobutton(radio_frame, text="Subfolder next to image:", variable=folder_mode,
+                       value='subfolder', **radio_style)
+        rb_subfolder.grid(row=0, column=0, sticky='w')
 
         subfolder_var = tk.StringVar(value=self.config['subfolder'])
         subfolder_entry = tk.Entry(radio_frame, textvariable=subfolder_var, width=14,
@@ -280,11 +283,13 @@ class ImageCropper:
                                    relief='flat', font=('Segoe UI', 9))
         subfolder_entry.grid(row=0, column=1, padx=(8, 0), sticky='w')
 
-        tk.Radiobutton(radio_frame, text="Same folder as image", variable=folder_mode,
-                       value='same', **radio_style).grid(row=1, column=0, sticky='w', pady=2)
+        rb_same = tk.Radiobutton(radio_frame, text="Same folder as image", variable=folder_mode,
+                       value='same', **radio_style)
+        rb_same.grid(row=1, column=0, sticky='w', pady=2)
 
-        tk.Radiobutton(radio_frame, text="Custom folder:", variable=folder_mode,
-                       value='custom', **radio_style).grid(row=2, column=0, sticky='w')
+        rb_custom = tk.Radiobutton(radio_frame, text="Custom folder:", variable=folder_mode,
+                       value='custom', **radio_style)
+        rb_custom.grid(row=2, column=0, sticky='w')
 
         custom_folder_var = tk.StringVar(value=self.config['custom_folder'])
         custom_frame = tk.Frame(radio_frame, bg='#1e1e1e')
@@ -301,26 +306,31 @@ class ImageCropper:
             if d:
                 custom_folder_var.set(d)
 
-        tk.Button(custom_frame, text='…', command=browse_folder,
+        browse_btn = tk.Button(custom_frame, text='…', command=browse_folder,
                   bg='#3a3a3a', fg='#cccccc', relief='flat', bd=0,
-                  font=('Segoe UI', 9), cursor='hand2', padx=4).pack(side=tk.LEFT, padx=(4, 0))
+                  font=('Segoe UI', 9), cursor='hand2', padx=4)
+        browse_btn.pack(side=tk.LEFT, padx=(4, 0))
 
         # --- Separator ---
-        tk.Frame(inner, bg='#333333', height=1).pack(fill=tk.X, padx=20, pady=8)
+        sep1 = tk.Frame(inner, bg='#333333', height=1)
+        sep1.pack(fill=tk.X, padx=20, pady=8)
 
         # --- Naming pattern ---
-        tk.Label(inner, text="Filename pattern", bg='#1e1e1e', fg='#aaaaaa',
-                 font=('Segoe UI', 9, 'bold'), anchor='w').pack(fill=tk.X, **pad)
+        lbl_pattern_title = tk.Label(inner, text="Filename pattern", bg='#1e1e1e', fg='#aaaaaa',
+                 font=('Segoe UI', 9, 'bold'), anchor='w')
+        lbl_pattern_title.pack(fill=tk.X, **pad)
 
         pattern_var = tk.StringVar(value=self.config['pattern'])
-        tk.Entry(inner, textvariable=pattern_var, bg='#2b2b2b', fg='#cccccc',
+        pattern_entry = tk.Entry(inner, textvariable=pattern_var, bg='#2b2b2b', fg='#cccccc',
                  insertbackground='#cccccc', relief='flat', font=('Segoe UI', 9),
-                 width=30).pack(padx=28, anchor='w')
+                 width=30)
+        pattern_entry.pack(padx=28, anchor='w')
 
-        tk.Label(inner, text="Available placeholders:  {base} = original filename without extension"
+        lbl_placeholders = tk.Label(inner, text="Available placeholders:  {base} = original filename without extension"
                              "   {n} = crop number   {ext} = extension",
                  bg='#1e1e1e', fg='#666666', font=('Segoe UI', 8),
-                 wraplength=420, justify='left').pack(padx=28, anchor='w', pady=(4, 0))
+                 wraplength=420, justify='left')
+        lbl_placeholders.pack(padx=28, anchor='w', pady=(4, 0))
 
         preview_var = tk.StringVar()
 
@@ -337,8 +347,79 @@ class ImageCropper:
         pattern_var.trace_add('write', update_preview)
         update_preview()
 
-        tk.Label(inner, textvariable=preview_var, bg='#1e1e1e', fg='#00d4ff',
-                 font=('Segoe UI', 9, 'italic')).pack(padx=28, anchor='w', pady=(2, 0))
+        lbl_preview = tk.Label(inner, textvariable=preview_var, bg='#1e1e1e', fg='#00d4ff',
+                 font=('Segoe UI', 9, 'italic'))
+        lbl_preview.pack(padx=28, anchor='w', pady=(2, 0))
+
+        # Collect all widgets that should be greyed out when overwrite is on
+        _output_widgets = [
+            rb_subfolder, rb_same, rb_custom,
+            subfolder_entry, custom_entry, browse_btn,
+            pattern_entry, lbl_pattern_title, lbl_placeholders, lbl_preview,
+        ]
+
+        def _set_output_widgets_state(enabled):
+            state = 'normal' if enabled else 'disabled'
+            fg_normal, fg_dimmed = '#cccccc', '#444444'
+            for w in _output_widgets:
+                try:
+                    w.configure(state=state)
+                except Exception:
+                    pass
+                try:
+                    w.configure(fg=fg_normal if enabled else fg_dimmed)
+                except Exception:
+                    pass
+
+        # --- Overwrite original ---
+        tk.Frame(inner, bg='#333333', height=1).pack(fill=tk.X, padx=20, pady=(12, 4))
+
+        overwrite_var = tk.BooleanVar(value=self.config.get('overwrite', 'false') == 'true')
+
+        danger_frame = tk.Frame(inner, bg='#2a0a0a', bd=0)
+        danger_frame.pack(fill=tk.X, padx=20, pady=(4, 4))
+
+        tk.Label(danger_frame, text="  ⚠  DANGER ZONE", bg='#2a0a0a', fg='#ff4444',
+                 font=('Segoe UI', 9, 'bold'), anchor='w').pack(fill=tk.X, padx=8, pady=(6, 2))
+
+        cb = tk.Checkbutton(danger_frame,
+                            text="Overwrite original image with crop",
+                            variable=overwrite_var,
+                            bg='#2a0a0a', fg='#ff8888',
+                            selectcolor='#1a0000',
+                            activebackground='#2a0a0a', activeforeground='#ff4444',
+                            font=('Segoe UI', 9),
+                            cursor='hand2')
+        cb.pack(anchor='w', padx=16, pady=(0, 4))
+
+        tk.Label(danger_frame,
+                 text="  This will permanently replace the source file. There is no undo.",
+                 bg='#2a0a0a', fg='#884444', font=('Segoe UI', 8, 'italic'),
+                 anchor='w', wraplength=420, justify='left').pack(fill=tk.X, padx=8, pady=(0, 8))
+
+        # Apply initial greyed state if overwrite already enabled
+        _set_output_widgets_state(not overwrite_var.get())
+
+        def on_overwrite_toggled():
+            if overwrite_var.get():
+                answer = messagebox.askyesno(
+                    "⚠ Are you sure?",
+                    "WARNING: Enabling this option will permanently overwrite your original image "
+                    "file with the cropped region every time you save.\n\n"
+                    "This CANNOT be undone. The original file will be lost forever.\n\n"
+                    "Are you absolutely sure you want to enable this?",
+                    icon='warning',
+                    parent=win
+                )
+                if not answer:
+                    overwrite_var.set(False)
+                    _set_output_widgets_state(True)
+                else:
+                    _set_output_widgets_state(False)
+            else:
+                _set_output_widgets_state(True)
+
+        cb.config(command=on_overwrite_toggled)
 
         # --- Config path ---
         tk.Frame(inner, bg='#333333', height=1).pack(fill=tk.X, padx=20, pady=(12, 4))
@@ -366,6 +447,7 @@ class ImageCropper:
             self.config['subfolder']     = subfolder_var.get().strip() or DEFAULT_SUBFOLDER
             self.config['custom_folder'] = custom_folder_var.get().strip()
             self.config['pattern']       = pat
+            self.config['overwrite']     = 'true' if overwrite_var.get() else 'false'
             save_config(self.config)
             win.destroy()
 
@@ -376,6 +458,23 @@ class ImageCropper:
 
         tk.Button(btn_row, text="Cancel", command=win.destroy,
                   bg='#3a3a3a', fg='#cccccc', activebackground='#555555',
+                  relief='flat', bd=0, font=('Segoe UI', 9),
+                  padx=20, pady=6, cursor='hand2').pack(side=tk.LEFT, padx=6)
+
+        def on_reset():
+            if messagebox.askyesno("Reset to defaults",
+                                   "Reset all settings to their defaults?",
+                                   parent=win):
+                folder_mode.set(DEFAULT_FOLDER_MODE)
+                subfolder_var.set(DEFAULT_SUBFOLDER)
+                custom_folder_var.set(DEFAULT_CUSTOM_FOLDER)
+                pattern_var.set(DEFAULT_PATTERN)
+                overwrite_var.set(False)
+                _set_output_widgets_state(True)
+
+        tk.Button(btn_row, text="Reset defaults", command=on_reset,
+                  bg='#2a2a2a', fg='#888888', activebackground='#3a3a3a',
+                  activeforeground='#cccccc',
                   relief='flat', bd=0, font=('Segoe UI', 9),
                   padx=20, pady=6, cursor='hand2').pack(side=tk.LEFT, padx=6)
 
@@ -808,10 +907,24 @@ class ImageCropper:
         if output_ext.lower() in ('.jpg', '.jpeg') and crop.mode in ('RGBA', 'P'):
             save_img = crop.convert('RGB')
 
-        save_img.save(out_path)
-        self.status_var.set(f"Saved: {out_path}  ({right-left}x{bottom-top}px)")
+        if self.config.get('overwrite', 'false') == 'true':
+            # Save only over original, then reload it into the viewer
+            save_img.save(self.image_path)
+            fname = os.path.basename(self.image_path)
+            self.status_var.set(f"Overwritten: {self.image_path}  ({right-left}x{bottom-top}px)")
+            self._show_toast(f"Overwritten  {fname}")
+            # Reload the now-modified image into the viewer
+            self.pil_image = Image.open(self.image_path)
+            self._display_pil = (self.pil_image.convert('RGBA')
+                                 if self.pil_image.mode in ('P', 'RGBA')
+                                 else self.pil_image)
+            self._clear_selection()
+            self._render_image()
+        else:
+            save_img.save(out_path)
+            self.status_var.set(f"Saved: {out_path}  ({right-left}x{bottom-top}px)")
+            self._show_toast(f"Saved  {out_name}")
         self._update_info()
-        self._show_toast(f"Saved  {out_name}")
 
     # ------------------------------------------------------------------
     #  Toast notification

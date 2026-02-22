@@ -1,10 +1,18 @@
 # 🖼️ Image Cropper
 
-A lightweight, keyboard-friendly desktop tool for quickly cropping regions from images. Built with Python and Tkinter — no installation wizard, no bloat.
+A lightweight desktop tool for quickly cropping regions from images. Built with Python and Tkinter — no installation wizard, no bloat.
+
+*By Los Amos del Calabozo*
 
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue) ![License](https://img.shields.io/badge/license-CC0-green) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
 ![Image Cropper screenshot](image_cropper_screenshot.jpg)
+---
+
+## Screenshot
+
+![Image Cropper screenshot](screenshot.png)
+
 ---
 
 ## Features
@@ -12,10 +20,11 @@ A lightweight, keyboard-friendly desktop tool for quickly cropping regions from 
 - **Draw a crop selection** by clicking and dragging on the image
 - **Resize** the selection with 8 handles (corners + edge midpoints)
 - **Move** the selection by dragging inside it
-- **Save crops** with Enter or Space — files are numbered automatically (`_cr1`, `_cr2`, …)
-- **Navigate** between images in the same folder with the arrow keys
+- **Toolbar buttons** for Save, ◀ Prev, ▶ Next — all with keyboard shortcut tooltips on hover
+- **Save crops** with the toolbar button, `Enter`, or `Space` — files are numbered automatically (`_cr1`, `_cr2`, …)
+- **Navigate** between images in the same folder with the toolbar or keyboard
 - **Remembers** the last opened file between sessions
-- **Customisable** output folder and filename pattern via the Settings dialog
+- **Customisable** output folder and filename pattern via the ⚙ Settings dialog
 - Rule-of-thirds grid overlay inside the selection
 - Fading save confirmation toast
 - Scrollable Help and Settings popups
@@ -51,16 +60,18 @@ python image_cropper.py /path/to/image.jpg
 
 ## Controls
 
-| Action | Input |
-|---|---|
-| Open image | `File > Open` or `Ctrl+O` |
-| Draw selection | Click + drag |
-| Resize selection | Drag any of the 8 handles |
-| Move selection | Drag inside the selection |
-| Clear selection | `Esc` |
-| Save crop | `Enter` or `Space` |
-| Next image in folder | `→` Right arrow |
-| Previous image in folder | `←` Left arrow |
+All actions are available via toolbar buttons. Keyboard shortcuts also work:
+
+| Action | Keyboard | Toolbar |
+|---|---|---|
+| Open image | `Ctrl+O` | `File > Open` |
+| Draw selection | Click + drag | — |
+| Resize selection | — | Drag any of the 8 handles |
+| Move selection | — | Drag inside the selection |
+| Clear selection | `Esc` | — |
+| Save crop | `Enter` or `Space` | 💾 Save crop |
+| Next image in folder | `→` | ▶ |
+| Previous image in folder | `←` | ◀ |
 
 ---
 
@@ -84,7 +95,7 @@ The filename is controlled by a configurable pattern. Available placeholders:
 | `{n}` | Crop number (1, 2, 3, …) |
 | `{ext}` | File extension (e.g. `.jpg`) |
 
-**Default pattern:** `{base}_cr{n}`  
+**Default pattern:** `{base}_cr{n}`
 **Example output:** `photo_cr1.jpg`, `photo_cr2.jpg`, …
 
 ---

@@ -62,10 +62,10 @@ All actions are available via toolbar buttons. Keyboard shortcuts also work:
 | Action | Keyboard | Toolbar |
 |---|---|---|
 | Open image | `Ctrl+O` | `File > Open` |
-| Draw selection | Click + drag | — |
+| Draw selection | — | Click + drag |
 | Resize selection | — | Drag any of the 8 handles |
 | Move selection | — | Drag inside the selection |
-| Clear selection | `Esc` | — |
+| Clear selection | `Esc` | Click inside the selection |
 | Save crop | `Enter` or `Space` | 💾 Save crop |
 | Next image in folder | `→` | ▶ |
 | Previous image in folder | `←` | ◀ |

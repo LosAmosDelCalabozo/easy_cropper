@@ -24,7 +24,10 @@ A lightweight desktop tool for quickly cropping regions from images. Built with 
 - **Navigate** between images in the same folder with the toolbar or keyboard
 - **Remembers** the last opened file between sessions
 - **Customisable** output folder and filename pattern via the ⚙ Settings dialog
+- **Overwrite original** option in Settings (with a stern warning — this cannot be undone)
 - Rule-of-thirds grid overlay inside the selection
+- Fading save confirmation toast
+- Scrollable Help and Settings popups
 
 ---
 
@@ -65,7 +68,7 @@ All actions are available via toolbar buttons. Keyboard shortcuts also work:
 | Draw selection | — | Click + drag |
 | Resize selection | — | Drag any of the 8 handles |
 | Move selection | — | Drag inside the selection |
-| Clear selection | `Esc` | Click inside the selection |
+| Clear selection | `Esc` | Click outside the selection |
 | Save crop | `Enter` or `Space` | 💾 Save crop |
 | Next image in folder | `→` | ▶ |
 | Previous image in folder | `←` | ◀ |
@@ -81,6 +84,7 @@ Crops are saved according to your settings (configurable via the ⚙ button):
 | Subfolder (default) | Saves into a named subfolder next to the source image (default: `cropped/`) |
 | Same folder | Saves alongside the original image |
 | Custom folder | Saves to any folder you choose |
+| Overwrite original | ⚠️ Replaces the source file with the crop — **cannot be undone** |
 
 ### Filename pattern
 

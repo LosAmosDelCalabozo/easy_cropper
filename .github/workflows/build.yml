@@ -3,7 +3,10 @@ name: Build Executables
 on:
   push:
     tags:
-      - 'v*'        # triggers on version tags like v1.0, v1.2.3
+      - 'v*'        # v1.0, v1.2.3
+      - '[0-9]*'    # 1.0, 1.2.3 (without v prefix)
+  release:
+    types: [published]  # also fires when a release is published via GitHub UI
   workflow_dispatch:  # allows manual trigger from Actions tab
 
 jobs:
@@ -145,9 +148,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Image Cropper ${{ github.ref_name }}
+          name: Easy Cropper ${{ github.ref_name }}
           body: |
-            ## Image Cropper ${{ github.ref_name }}
+            ## Easy Cropper ${{ github.ref_name }}
             *By Los Amos del Calabozo*
 
             ### Downloads

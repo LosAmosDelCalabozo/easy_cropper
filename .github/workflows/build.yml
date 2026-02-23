@@ -1,0 +1,127 @@
+name: Build Executables
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # allows manual trigger from Actions tab
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install Pillow pyinstaller
+
+      - name: Build .app
+        run: |
+          pyinstaller \
+            --onefile \
+            --windowed \
+            --name "Image Cropper" \
+            --hidden-import PIL \
+            --hidden-import PIL.Image \
+            --hidden-import PIL.ImageTk \
+            --hidden-import tkinter \
+            --hidden-import tkinter.filedialog \
+            --hidden-import tkinter.messagebox \
+            --clean \
+            image_cropper.py
+
+      - name: Zip the .app
+        run: |
+          cd dist
+          zip -r "Image.Cropper.macOS.zip" "Image Cropper.app"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image-Cropper-macOS
+          path: dist/Image.Cropper.macOS.zip
+          retention-days: 30
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install Pillow pyinstaller
+
+      - name: Build .exe
+        run: |
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name "Image Cropper" `
+            --hidden-import PIL `
+            --hidden-import PIL.Image `
+            --hidden-import PIL.ImageTk `
+            --hidden-import tkinter `
+            --hidden-import tkinter.filedialog `
+            --hidden-import tkinter.messagebox `
+            --clean `
+            image_cropper.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image-Cropper-Windows
+          path: "dist/Image Cropper.exe"
+          retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install Pillow pyinstaller
+          sudo apt-get install -y python3-tk
+
+      - name: Build binary
+        run: |
+          pyinstaller \
+            --onefile \
+            --windowed \
+            --name "Image Cropper" \
+            --hidden-import PIL \
+            --hidden-import PIL.Image \
+            --hidden-import PIL.ImageTk \
+            --hidden-import tkinter \
+            --hidden-import tkinter.filedialog \
+            --hidden-import tkinter.messagebox \
+            --clean \
+            image_cropper.py
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image-Cropper-Linux
+          path: "dist/Image Cropper"
+          retention-days: 30

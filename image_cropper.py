@@ -576,7 +576,7 @@ class ImageCropper:
             canvas.itemconfig(inner_id, width=e.width)
 
         inner.bind('<Configure>', on_inner_configure)
-        canvas.bind('<Configure>', on_canvas_configure)
+        # canvas Configure bound after body_labels are created below
 
         def on_mousewheel(e):
             canvas.yview_scroll(int(-1 * (e.delta / 120)), 'units')
@@ -624,15 +624,26 @@ class ImageCropper:
              f"All settings and the last opened file are stored in:\n{CONFIG_PATH}"),
         ]
 
+        body_labels = []
         for title, body in sections:
             frm = tk.Frame(inner, bg='#1e1e1e')
             frm.pack(fill=tk.X, padx=20, pady=(0, 12))
             tk.Label(frm, text=title, bg='#1e1e1e', fg='#00d4ff',
                      font=('Segoe UI', 10, 'bold'), anchor='w').pack(anchor='w')
-            tk.Label(frm, text=body, bg='#1e1e1e', fg='#aaaaaa',
+            lbl = tk.Label(frm, text=body, bg='#1e1e1e', fg='#aaaaaa',
                      font=('Segoe UI', 9), anchor='w', justify='left',
-                     wraplength=400).pack(anchor='w', padx=10, pady=(2, 0))
+                     wraplength=400)
+            lbl.pack(anchor='w', padx=10, pady=(2, 0), fill=tk.X, expand=True)
+            body_labels.append(lbl)
             tk.Frame(inner, bg='#2d2d2d', height=1).pack(fill=tk.X, padx=20, pady=(6, 0))
+
+        def on_canvas_resize_help(e):
+            wrap = max(100, e.width - 60)
+            for lbl in body_labels:
+                lbl.configure(wraplength=wrap)
+            canvas.configure(scrollregion=canvas.bbox('all'))
+
+        canvas.bind('<Configure>', lambda e: (on_canvas_configure(e), on_canvas_resize_help(e)))
 
         tk.Button(win, text="Close", command=win.destroy,
                   bg='#00d4ff', fg='#000000', activebackground='#00b8de',
@@ -692,6 +703,8 @@ class ImageCropper:
 
         self.config['last_file'] = path
         save_config(self.config)
+
+
 
     # ------------------------------------------------------------------
     #  Rendering
@@ -892,6 +905,11 @@ class ImageCropper:
             self._drag_sel_snapshot = (self.sel_x0, self.sel_y0, self.sel_x1, self.sel_y1)
             return
 
+        # Clamp start point to image bounds — don't allow drawing outside the image
+        bx0, by0, bx1, by1 = self._img_bounds_canvas()
+        x = max(bx0, min(bx1, x))
+        y = max(by0, min(by1, y))
+
         self._clear_selection()
         self._drag_mode = 'new'
         self.sel_x0, self.sel_y0 = x, y
@@ -921,6 +939,38 @@ class ImageCropper:
             x1 = x0 + (new_dx if dx >= 0 else -new_dx)
         return x1, y1
 
+    def _img_bounds_canvas(self):
+        """Return the canvas-space bounding box of the loaded image."""
+        if self.pil_image is None:
+            return (0, 0, self.canvas.winfo_width(), self.canvas.winfo_height())
+        iw, ih = self.pil_image.size
+        x0 = self.offset_x
+        y0 = self.offset_y
+        x1 = self.offset_x + iw * self.scale
+        y1 = self.offset_y + ih * self.scale
+        return x0, y0, x1, y1
+
+    def _clamp_sel_to_image(self):
+        """Clamp the current selection so it stays inside the image bounds."""
+        bx0, by0, bx1, by1 = self._img_bounds_canvas()
+        # Clamp each corner
+        self.sel_x0 = max(bx0, min(bx1, self.sel_x0))
+        self.sel_y0 = max(by0, min(by1, self.sel_y0))
+        self.sel_x1 = max(bx0, min(bx1, self.sel_x1))
+        self.sel_y1 = max(by0, min(by1, self.sel_y1))
+
+        # For move: keep the whole rect inside without resizing it
+        # (already handled per-axis above, but ensure width/height are preserved for move)
+
+    def _clamp_move_to_image(self, x0, y0, x1, y1):
+        """Clamp a move so the whole rect stays inside the image, preserving size."""
+        bx0, by0, bx1, by1 = self._img_bounds_canvas()
+        w = x1 - x0
+        h = y1 - y0
+        x0 = max(bx0, min(bx1 - w, x0))
+        y0 = max(by0, min(by1 - h, y0))
+        return x0, y0, x0 + w, y0 + h
+
     def _on_mouse_drag(self, event):
         if self._drag_mode is None:
             return
@@ -928,49 +978,145 @@ class ImageCropper:
         ratio = self._get_ratio()
 
         if self._drag_mode == 'new':
+            bx0, by0, bx1, by1 = self._img_bounds_canvas()
+            # Clamp mouse position first
+            x = max(bx0, min(bx1, x))
+            y = max(by0, min(by1, y))
             if ratio:
                 x, y = self._constrain_to_ratio(self.sel_x0, self.sel_y0, x, y, ratio)
+                # After ratio adjustment one axis may have gone out of bounds.
+                # Clamp again and re-derive the other axis from the clamped one.
+                rw, rh = ratio
+                dx = x - self.sel_x0
+                dy = y - self.sel_y0
+                cx = max(bx0, min(bx1, x))
+                cy = max(by0, min(by1, y))
+                if cx != x:   # x was clamped — recompute y from clamped x
+                    new_dy = abs(cx - self.sel_x0) * rh / rw
+                    cy = self.sel_y0 + (new_dy if dy >= 0 else -new_dy)
+                    cy = max(by0, min(by1, cy))
+                elif cy != y:  # y was clamped — recompute x from clamped y
+                    new_dx = abs(cy - self.sel_y0) * rw / rh
+                    cx = self.sel_x0 + (new_dx if dx >= 0 else -new_dx)
+                    cx = max(bx0, min(bx1, cx))
+                x, y = cx, cy
             self.sel_x1, self.sel_y1 = x, y
 
         elif self._drag_mode == 'move':
             dx = x - self._drag_ox
             dy = y - self._drag_oy
             sx0, sy0, sx1, sy1 = self._drag_sel_snapshot
-            self.sel_x0, self.sel_y0 = sx0 + dx, sy0 + dy
-            self.sel_x1, self.sel_y1 = sx1 + dx, sy1 + dy
+            nx0, ny0, nx1, ny1 = self._clamp_move_to_image(sx0 + dx, sy0 + dy, sx1 + dx, sy1 + dy)
+            self.sel_x0, self.sel_y0 = nx0, ny0
+            self.sel_x1, self.sel_y1 = nx1, ny1
 
         else:
             h = self._drag_mode
             sx0, sy0, sx1, sy1 = self._drag_sel_snapshot
+            bx0, by0, bx1, by1 = self._img_bounds_canvas()
             dx = x - self._drag_ox
             dy = y - self._drag_oy
+
+            # Clamp dx/dy so the dragged edge(s) never go outside image bounds
+            if 'w' in h: dx = max(bx0 - sx0, min(bx1 - sx0, dx))
+            if 'e' in h: dx = max(bx0 - sx1, min(bx1 - sx1, dx))
+            if 'n' in h: dy = max(by0 - sy0, min(by1 - sy0, dy))
+            if 's' in h: dy = max(by0 - sy1, min(by1 - sy1, dy))
+
             if 'w' in h: sx0 += dx
             if 'e' in h: sx1 += dx
             if 'n' in h: sy0 += dy
             if 's' in h: sy1 += dy
 
             if ratio:
-                # For corner handles: anchor is opposite corner, move the dragged corner
-                if len(h) == 2:  # corner handle
-                    anchor_x = sx1 if 'w' in h else sx0
-                    anchor_y = sy1 if 'n' in h else sy0
-                    move_x   = sx0 if 'w' in h else sx1
-                    move_y   = sy0 if 'n' in h else sy1
-                    mx, my = self._constrain_to_ratio(anchor_x, anchor_y, move_x, move_y, ratio)
-                    if 'w' in h: sx0 = mx
-                    else:        sx1 = mx
-                    if 'n' in h: sy0 = my
-                    else:        sy1 = my
-                elif h in ('n', 's'):
-                    # Height changed — adjust width from centre
-                    cx = (sx0 + sx1) / 2
-                    half_w = abs(sy1 - sy0) * ratio[0] / ratio[1] / 2
-                    sx0, sx1 = cx - half_w, cx + half_w
-                elif h in ('e', 'w'):
-                    # Width changed — adjust height from centre
-                    cy = (sy0 + sy1) / 2
-                    half_h = abs(sx1 - sx0) * ratio[1] / ratio[0] / 2
-                    sy0, sy1 = cy - half_h, cy + half_h
+                rw, rh = ratio
+                # Snapshot edges (anchors never move)
+                snap_x0, snap_y0, snap_x1, snap_y1 = self._drag_sel_snapshot
+
+                if len(h) == 2:  # corner handle — anchor is opposite corner
+                    ax = snap_x1 if 'w' in h else snap_x0
+                    ay = snap_y1 if 'n' in h else snap_y0
+                    # Available space from anchor to each image boundary
+                    max_w = ax - bx0 if 'w' in h else bx1 - ax
+                    max_h = ay - by0 if 'n' in h else by1 - ay
+                    # Mouse request (raw, may exceed bounds)
+                    req_w = abs(x - ax)
+                    req_h = abs(y - ay)
+                    # Try both axes as driver; pick the larger size that fits both bounds
+                    cand_a = min(req_w, max_w)                      # x-driven width
+                    cand_b = min(req_h, max_h) * rw / rh            # y-driven width
+                    final_w = max(cand_a, cand_b)
+                    # Make sure final_w doesn't violate either boundary
+                    final_w = min(final_w, max_w, max_h * rw / rh)
+                    final_h = final_w * rh / rw
+                    if 'w' in h: sx0 = ax - final_w
+                    else:        sx1 = ax + final_w
+                    if 'n' in h: sy0 = ay - final_h
+                    else:        sy1 = ay + final_h
+
+                elif h in ('e', 'w'):  # side handle — x moves, y scales proportionally
+                    ax = snap_x1 if h == 'w' else snap_x0  # fixed x edge
+                    max_w = ax - bx0 if h == 'w' else bx1 - ax
+                    new_w = min(abs(sx1 - sx0), max_w)
+                    new_h = new_w * rh / rw
+                    # Cap height to image height and re-derive width immediately
+                    max_h_avail = by1 - by0
+                    if new_h > max_h_avail:
+                        new_h = max_h_avail
+                        new_w = new_h * rw / rh
+                    # Scale y proportionally around snapshot centre, clamped to image
+                    snap_cy = (snap_y0 + snap_y1) / 2
+                    new_sy0 = snap_cy - new_h / 2
+                    new_sy1 = snap_cy + new_h / 2
+                    # If y hits a boundary, shift (not shrink) so it stays against that edge
+                    if new_sy0 < by0:
+                        new_sy1 += by0 - new_sy0
+                        new_sy0 = by0
+                    if new_sy1 > by1:
+                        new_sy0 -= new_sy1 - by1
+                        new_sy1 = by1
+                    # If after shifting y still doesn't fit, shrink w to match
+                    actual_h = new_sy1 - new_sy0
+                    if actual_h < new_h - 0.5:
+                        new_w = actual_h * rw / rh
+                    sx0 = ax - new_w if h == 'w' else ax
+                    sx1 = ax if h == 'w' else ax + new_w
+                    sy0, sy1 = new_sy0, new_sy1
+
+                elif h in ('n', 's'):  # top/bottom handle — y moves, x scales proportionally
+                    ay = snap_y1 if h == 'n' else snap_y0  # fixed y edge
+                    max_h = ay - by0 if h == 'n' else by1 - ay
+                    new_h = min(abs(sy1 - sy0), max_h)
+                    new_w = new_h * rw / rh
+                    # Cap width to image width and re-derive height immediately
+                    max_w_avail = bx1 - bx0
+                    if new_w > max_w_avail:
+                        new_w = max_w_avail
+                        new_h = new_w * rh / rw
+                    # Scale x proportionally around snapshot centre, clamped to image
+                    snap_cx = (snap_x0 + snap_x1) / 2
+                    new_sx0 = snap_cx - new_w / 2
+                    new_sx1 = snap_cx + new_w / 2
+                    # If x hits a boundary, shift so it stays against that edge
+                    if new_sx0 < bx0:
+                        new_sx1 += bx0 - new_sx0
+                        new_sx0 = bx0
+                    if new_sx1 > bx1:
+                        new_sx0 -= new_sx1 - bx1
+                        new_sx1 = bx1
+                    # If after shifting x still doesn't fit, shrink h to match
+                    actual_w = new_sx1 - new_sx0
+                    if actual_w < new_w - 0.5:
+                        new_h = actual_w * rh / rw
+                    sy0 = ay - new_h if h == 'n' else ay
+                    sy1 = ay if h == 'n' else ay + new_h
+                    sx0, sx1 = new_sx0, new_sx1
+
+                # Clamp for float drift only
+                sx0 = max(bx0, min(bx1, sx0))
+                sy0 = max(by0, min(by1, sy0))
+                sx1 = max(bx0, min(bx1, sx1))
+                sy1 = max(by0, min(by1, sy1))
 
             self.sel_x0, self.sel_y0, self.sel_x1, self.sel_y1 = sx0, sy0, sx1, sy1
 
